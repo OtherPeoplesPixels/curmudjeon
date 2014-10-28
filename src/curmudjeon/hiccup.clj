@@ -1,0 +1,132 @@
+(ns curmudjeon.hiccup
+  (:require [cheshire.core :as json]
+            [clojure.string :as str]
+            [clojure.java.io :as io])
+  (:import [javax.script ScriptEngineManager]
+           [java.util.concurrent ArrayBlockingQueue]))
+
+(declare hiccup->react)
+
+(def dash->camel
+  (memoize (fn [k]
+             (let [[s & ss] (str/split (name k) #"-")]
+               (if (#{"aria" "data"} s)
+                 (name k)
+                 (str/join "" (cons s (map str/capitalize ss))))))))
+
+(defn cleanup-attr [k]
+  (case k
+    :charset "charSet"
+    :class "className"
+    :for "htmlFor"
+    (dash->camel k)))
+
+(defn cleanup-style [[k v]]
+  [(dash->camel k) v])
+
+(defn cleanup-style-map [attrs]
+  (if-let [style-map (:style attrs)]
+    (->> (map cleanup-style style-map)
+         (into {})
+         (assoc attrs :style))
+    attrs))
+
+(defn cleanup-attrs [attrs]
+  (cleanup-style-map
+   (zipmap (->> (keys attrs)
+                (map cleanup-attr))
+           (vals attrs))))
+
+;; Courtesy of James Reeve's Hiccup
+(def re-tag #"([^\s\.#]+)(?:#([^\s\.#]+))?(?:\.([^\s#]+))?")
+
+(defn parse-tag [k]
+  (assert (keyword? k)
+          (str "Tags must be keywords, not " (pr-str k)))
+  (let [[_ tag id classes] (re-matches re-tag (name k))]
+    [tag (merge {}
+                (when id {:id id})
+                (when classes {:class (.replace ^String classes "." " ")}))]))
+
+(defn parse-tag-vector [v]
+  (let [[k & more] v
+        [tag tag-attrs] (parse-tag k)
+        [attrs nested] (if (map? (first more))
+                         more
+                         [{} more])]
+    [tag (cleanup-attrs (merge tag-attrs attrs)) nested]))
+
+(defn comma-sep [s]
+  (dorun s)
+  (prn "comma-sep =" s)
+)
+
+(defn tag->react [v]
+  (if (fn? (v 0))
+    (hiccup->react (apply (first v) (rest v)))
+    (let [[tag attrs nested] (parse-tag-vector v)]
+      (str "React.DOM." tag "("
+           (->> (hiccup->react nested)
+                (cons (json/encode attrs))
+                (interpose "," )
+                (apply str))
+           ")"))))
+
+(def threadsafe-react
+  (let [react-url (io/resource "curmudjeon/react.min.js")]
+    (fn [nashorn]
+      (.eval nashorn
+             "(function(){return loadWithNewGlobal(url)})()"
+             (doto (.createBindings nashorn)
+               (.put "url" react-url))))))
+
+(defn hiccup->react [h]
+  (cond (string? h)
+        [(pr-str h)]
+
+        (or (nil? h) (and (coll? h) (empty? h)))
+        nil
+
+        (vector? h)
+        [(tag->react h)]
+        
+        (seq? h)
+        (mapcat hiccup->react h)
+
+        :else
+        (throw (IllegalArgumentException.
+                (str "Can't convert to react form: " (pr-str h))))))
+
+(def nashorn-engine
+  (let [n (.getEngineByName (ScriptEngineManager.) "nashorn")]
+    (when (nil? n)
+      (throw (RuntimeException.
+              "Failed to instantiate Nashorn ScriptEngine (Java < 8?)")))
+    n))
+
+(def react-instances
+  (let [cpus (.availableProcessors (Runtime/getRuntime))
+        load-react #(delay (threadsafe-react nashorn-engine))]
+    (->> (repeatedly load-react)
+         (take cpus)
+         (ArrayBlockingQueue. cpus true))))
+
+(defn eval-with-bindings [engine expr & bindings]
+  (let [js-bindings (.createBindings engine)
+        _ (doseq [[n v] (partition 2 bindings)]
+            (.put js-bindings (name n) v))]
+    (.eval engine expr js-bindings)))
+
+;; Public
+
+(defn render-to-string [h]
+  (assert (vector? h)
+          (str "Expected hiccup-style vector, got " (pr-str h)))
+  (if-let [dom (tag->react h)]
+    (let [react (.take react-instances)]
+      (try
+        (eval-with-bindings nashorn-engine
+                            (str "React.renderComponentToString(" dom ")")
+                            :React @react)
+        (finally (.put react-instances react))))
+    ""))
