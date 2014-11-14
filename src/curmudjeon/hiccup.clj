@@ -72,8 +72,13 @@
                 (apply str))
            ")"))))
 
+(def react-path
+  (if (System/getProperty "curmudjeon.devel")
+    "curmudjeon/react.dev.js"
+    "curmudjeon/react.min.js"))
+
 (def threadsafe-react
-  (let [react-url (io/resource "curmudjeon/react.min.js")]
+  (let [react-url (io/resource react-path)]
     (fn [nashorn]
       (.eval nashorn
              "(function(){return loadWithNewGlobal(url)})()"
@@ -126,7 +131,7 @@
     (let [react (.take react-instances)]
       (try
         (eval-with-bindings nashorn-engine
-                            (str "React.renderComponentToString(" dom ")")
+                            (str "React.renderToString(" dom ")")
                             :React @react)
         (finally (.put react-instances react))))
     ""))

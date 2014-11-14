@@ -1,4 +1,4 @@
-(defproject curmudjeon "0.1.1"
+(defproject curmudjeon "0.1.2"
   :description "Render HTML using Facebook's React from Clojure on the JVM."
   :url "http://github.com/OtherPeoplesPixels/curmudjeon"
   :license {:name "Eclipse Public License"

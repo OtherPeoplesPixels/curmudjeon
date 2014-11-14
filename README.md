@@ -18,7 +18,7 @@ Stay off my DOM you damn kids!
 Add the following dependency to your `project.clj` file:
 
 ```clojure
-[curmudjeon "0.1.1"]
+[curmudjeon "0.1.2"]
 ```
 
 PLEASE NOTE: Curmudjeon requires Java 8 for the Nashorn Javascript engine.
