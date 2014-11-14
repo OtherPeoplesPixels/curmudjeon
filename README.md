@@ -49,6 +49,18 @@ PLEASE NOTE: Curmudjeon requires Java 8 for the Nashorn Javascript engine.
   (GET "/list/:who" [who] (render-to-string (page who))))
 ```
 
+## Debugging
+
+The minified build of React doesn't provide much information when
+something goes wrong. It's possible to use the development build
+by setting the `curmudjeon.devel` system property.
+
+For example, in your `project.clj`:
+
+```clojure
+:jvm-opts ["-Dcurmudjeon.devel=1"]
+```
+
 ## License
 
 Copyright © 2014 OtherPeoplesPixels
