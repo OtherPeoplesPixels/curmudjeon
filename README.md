@@ -15,13 +15,15 @@ Stay off my DOM you damn kids!
 
 ## Installation
 
+Curmudjeon requires Java 8 for the Nashorn Javascript engine.
+
+**There is a bug in JDK `1.8.0_25` that causes rendering to fail. It is recommended to use the latest JDK 8 pre-release from Oracle when using Curmudjeon.**
+
 Add the following dependency to your `project.clj` file:
 
 ```clojure
 [curmudjeon "0.1.2"]
 ```
-
-PLEASE NOTE: Curmudjeon requires Java 8 for the Nashorn Javascript engine.
 
 ## Usage
 
