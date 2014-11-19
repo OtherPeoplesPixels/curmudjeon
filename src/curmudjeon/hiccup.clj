@@ -19,6 +19,7 @@
     :charset "charSet"
     :class "className"
     :for "htmlFor"
+    :dangerously-set-inner-html "dangerouslySetInnerHTML"
     (dash->camel k)))
 
 (defn desugar-class-set [cx]
