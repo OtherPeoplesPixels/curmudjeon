@@ -22,7 +22,7 @@ Curmudjeon requires Java 8 for the Nashorn Javascript engine.
 Add the following dependency to your `project.clj` file:
 
 ```clojure
-[curmudjeon "0.1.2"]
+[curmudjeon "0.1.3"]
 ```
 
 ## Usage
