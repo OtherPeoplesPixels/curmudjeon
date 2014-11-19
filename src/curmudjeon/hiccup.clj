@@ -21,6 +21,22 @@
     :for "htmlFor"
     (dash->camel k)))
 
+(defn desugar-class-set [cx]
+  (when cx
+    (cond
+     (string? cx) cx
+
+     (set? cx)
+     (->> (disj cx nil)
+          (map name)
+          (str/join " "))
+
+     (vector? cx)
+     (recur (set cx))
+
+     (map? cx)
+     (recur (set (for [[k v] cx] (when v k)))))))
+
 (defn cleanup-style [[k v]]
   [(dash->camel k) v])
 
@@ -32,10 +48,11 @@
     attrs))
 
 (defn cleanup-attrs [attrs]
-  (cleanup-style-map
-   (zipmap (->> (keys attrs)
-                (map cleanup-attr))
-           (vals attrs))))
+  (-> (zipmap (->> (keys attrs)
+                   (map cleanup-attr))
+              (vals attrs))
+      (update-in ["className"] desugar-class-set)
+      cleanup-style-map))
 
 ;; Courtesy of James Reeve's Hiccup
 (def re-tag #"([^\s\.#]+)(?:#([^\s\.#]+))?(?:\.([^\s#]+))?")
@@ -94,7 +111,7 @@
 
         (vector? h)
         [(tag->react h)]
-        
+
         (seq? h)
         (mapcat hiccup->react h)
 
