@@ -69,15 +69,10 @@
 (defn parse-tag-vector [v]
   (let [[k & more] v
         [tag tag-attrs] (parse-tag k)
-        [attrs & nested] (if (map? (first more))
-                         more
-                         (list* {} more))]
+        [attrs nested] (if (map? (first more))
+                         [(first more) (next more)]
+                         [{} more])]
     [tag (cleanup-attrs (merge tag-attrs attrs)) nested]))
-
-(defn comma-sep [s]
-  (dorun s)
-  (prn "comma-sep =" s)
-)
 
 (defn tag->react [v]
   (if (fn? (v 0))
