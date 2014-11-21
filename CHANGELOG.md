@@ -1,3 +1,6 @@
+v0.1.4:
+- FIXED: Tags with attributes only render first child
+
 v0.1.3:
 - Sugar for `:class` attribute to support maps, sets, vectors
 - Support `:dangerously-set-inner-html` attribute
