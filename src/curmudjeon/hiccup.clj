@@ -10,16 +10,17 @@
 (def dash->camel
   (memoize (fn [k]
              (let [[s & ss] (str/split (name k) #"-")]
-               (if (#{"aria" "data"} s)
-                 (name k)
-                 (str/join "" (cons s (map str/capitalize ss))))))))
+               (keyword
+                (if (#{"aria" "data"} s)
+                  (name k)
+                  (str/join "" (cons s (map str/capitalize ss)))))))))
 
 (defn cleanup-attr [k]
   (case k
-    :charset "charSet"
-    :class "className"
-    :for "htmlFor"
-    :dangerously-set-inner-html "dangerouslySetInnerHTML"
+    :charset :charSet
+    :class :className
+    :for :htmlFor
+    :dangerously-set-inner-html :dangerouslySetInnerHTML
     (dash->camel k)))
 
 (defn desugar-class-set [cx]
@@ -52,8 +53,16 @@
   (-> (zipmap (->> (keys attrs)
                    (map cleanup-attr))
               (vals attrs))
-      (update-in ["className"] desugar-class-set)
+      (update-in [:className] desugar-class-set)
       cleanup-style-map))
+
+(defn merge-attrs [tag-attrs attrs]
+  (let [merged (-> (cleanup-attrs attrs)
+                 (update-in [:className] str " " (:class tag-attrs))
+                 (merge (select-keys tag-attrs [:id])))]
+    (if (re-find #"\S" (:className merged ""))
+      merged
+      (dissoc merged :className))))
 
 ;; Courtesy of James Reeve's Hiccup
 (def re-tag #"([^\s\.#]+)(?:#([^\s\.#]+))?(?:\.([^\s#]+))?")
@@ -62,8 +71,7 @@
   (assert (keyword? k)
           (str "Tags must be keywords, not " (pr-str k)))
   (let [[_ tag id classes] (re-matches re-tag (name k))]
-    [tag (merge {}
-                (when id {:id id})
+    [tag (merge (when id {:id id})
                 (when classes {:class (.replace ^String classes "." " ")}))]))
 
 (defn parse-tag-vector [v]
@@ -72,7 +80,7 @@
         [attrs nested] (if (map? (first more))
                          [(first more) (next more)]
                          [{} more])]
-    [tag (cleanup-attrs (merge tag-attrs attrs)) nested]))
+    [tag (merge-attrs tag-attrs attrs) nested]))
 
 (defn tag->react [v]
   (if (fn? (v 0))
