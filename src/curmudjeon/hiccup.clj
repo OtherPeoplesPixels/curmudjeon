@@ -26,6 +26,8 @@
 (defn desugar-class-set [cx]
   (when cx
     (cond
+     (keyword? cx) (name cx)
+
      (string? cx) cx
 
      (set? cx)
@@ -37,7 +39,10 @@
      (recur (set cx))
 
      (map? cx)
-     (recur (set (for [[k v] cx] (when v k)))))))
+     (recur (set (for [[k v] cx] (when v k))))
+
+     :else
+     (throw (ex-info "Can't desugar class attribute" {:class cx})))))
 
 (defn cleanup-style [[k v]]
   [(dash->camel k) v])
