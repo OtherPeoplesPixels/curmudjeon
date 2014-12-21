@@ -1,5 +1,15 @@
 # Curmudjeon
 
+**NOT RECOMMENDED FOR PRODUCTION USE**
+
+**Unfortunately, we have found that the Nashorn Javascript engine is
+too buggy to rely on at present. After tracking down several errors
+attributed to Javascript objects not having the correct fields or
+methods being dispatched incorrectly, we have shelved this project
+for the present. Instead, we recommend using a simple node-based
+HTTP server to execute server-side React.**
+
+
 Using Curmudjeon, you can render `hiccup`-style templates using
 Facebook's React library from Clojure running on the JVM.
 
@@ -16,8 +26,6 @@ Stay off my DOM you damn kids!
 ## Installation
 
 Curmudjeon requires Java 8 for the Nashorn Javascript engine.
-
-**There is a bug in JDK `1.8.0_25` that causes rendering to fail. It is recommended to use the latest JDK 8 pre-release from Oracle when using Curmudjeon.**
 
 Add the following dependency to your `project.clj` file:
 
