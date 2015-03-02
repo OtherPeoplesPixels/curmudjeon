@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [clojure.java.io :as io])
   (:import [javax.script ScriptEngineManager]
+           [javax.script SimpleScriptContext ScriptContext]
            [java.util.concurrent ArrayBlockingQueue]))
 
 (declare hiccup->react)
@@ -108,33 +109,26 @@
                          [{} more])]
     [tag (merge-attrs tag-attrs attrs) nested]))
 
+(defn de-nest-single-child [children]
+  (if (and (sequential? children) (= 1 (count children)))
+    (first children)
+    children))
+
 (defn tag->react [v]
   (if (fn? (v 0))
     (hiccup->react (apply (first v) (rest v)))
-    (let [[tag attrs nested] (parse-tag-vector v)]
-      (str "React.DOM." tag "("
-           (->> (hiccup->react nested)
-                (cons (json/encode attrs))
-                (interpose "," )
-                (apply str))
-           ")"))))
-
-(def react-path
-  (if (System/getProperty "curmudjeon.devel")
-    "curmudjeon/react.dev.js"
-    "curmudjeon/react.min.js"))
-
-(def threadsafe-react
-  (let [react-url (io/resource react-path)]
-    (fn [nashorn]
-      (.eval nashorn
-             "(function(){return loadWithNewGlobal(url)})()"
-             (doto (.createBindings nashorn)
-               (.put "url" react-url))))))
+    (let [[tag attrs nested] (parse-tag-vector v)
+          children (hiccup->react nested)
+          props (if (seq children)
+                  (assoc attrs :children (de-nest-single-child children))
+                  attrs)]
+      {:type tag
+       :props props
+       :_isReactElement true})))
 
 (defn hiccup->react [h]
   (cond (string? h)
-        [(pr-str h)]
+        [h]
 
         (or (nil? h) (and (coll? h) (empty? h)))
         nil
@@ -149,36 +143,45 @@
         (throw (IllegalArgumentException.
                 (str "Can't convert to react form: " (pr-str h))))))
 
-(def nashorn-engine
-  (let [n (.getEngineByName (ScriptEngineManager.) "nashorn")]
+(def react-resource
+  (io/resource
+   (if (System/getProperty "curmudjeon.devel")
+     "curmudjeon/react.dev.js"
+     "curmudjeon/react.min.js")))
+
+(defn react-engine []
+  (let [n (.getEngineByMimeType (ScriptEngineManager.) "application/javascript")
+        src (slurp react-resource)]
     (when (nil? n)
       (throw (RuntimeException.
-              "Failed to instantiate Nashorn ScriptEngine (Java < 8?)")))
-    n))
+              "Failed to instantiate ScriptEngine.")))
+    (doto n
+      (.eval "var global=this,console={log:function(){print.apply(null,Array.prototype.slice.call(arguments))}};console.warn=console.log;")
+      (.eval src)
+      (.eval (str "function reactRenderToString(x){"
+                  "  return React.renderToStaticMarkup(JSON.parse(x));"
+                  "};")))))
 
-(def react-instances
+(def react-engines
   (let [cpus (.availableProcessors (Runtime/getRuntime))
-        load-react #(delay (threadsafe-react nashorn-engine))]
+        load-react #(delay (react-engine))]
     (->> (repeatedly load-react)
-         (take cpus)
-         (ArrayBlockingQueue. cpus true))))
-
-(defn eval-with-bindings [engine expr & bindings]
-  (let [js-bindings (.createBindings engine)
-        _ (doseq [[n v] (partition 2 bindings)]
-            (.put js-bindings (name n) v))]
-    (.eval engine expr js-bindings)))
+      (take cpus)
+      (ArrayBlockingQueue. cpus true))))
 
 ;; Public
+
+(defn render-to-string* [engine json]
+  (.invokeFunction engine "reactRenderToString"
+                   (into-array [json])))
 
 (defn render-to-string [h]
   (assert (vector? h)
           (str "Expected hiccup-style vector, got " (pr-str h)))
-  (if-let [dom (tag->react h)]
-    (let [react (.take react-instances)]
+  (if-let [tags-json (some-> (tag->react h) json/encode)]
+    (let [engine (.take react-engines)]
       (try
-        (eval-with-bindings nashorn-engine
-                            (str "React.renderToString(" dom ")")
-                            :React @react)
-        (finally (.put react-instances react))))
+        (render-to-string* @engine tags-json)
+        (finally
+          (.put react-engines engine))))
     ""))
