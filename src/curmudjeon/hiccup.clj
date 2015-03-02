@@ -47,12 +47,33 @@
 (defn cleanup-style [[k v]]
   [(dash->camel k) v])
 
+;; TODO more robust parsing
+(defn parse-style-string [s]
+  (assert (not (re-find #"\"" s))
+          "Parsing style attributes containing quotes is unsupported.")
+  (->> (str/split s #";")
+    (mapcat #(str/split % #":"))
+    (map str/trim)
+    (partition 2)
+    (map vec)
+    (into {})))
+
 (defn cleanup-style-map [attrs]
-  (if-let [style-map (:style attrs)]
-    (->> (map cleanup-style style-map)
-         (into {})
-         (assoc attrs :style))
-    attrs))
+  (let [k :style
+        style-attr (get attrs k)]
+    (cond (map? style-attr)
+          (->> (map cleanup-style style-attr)
+            (into {})
+            (assoc attrs k))
+
+          ;; React requires style attributes to be maps
+          (string? style-attr)
+          (->> style-attr
+            parse-style-string
+            (assoc attrs k)
+            recur)
+
+          :else attrs)))
 
 (defn cleanup-attrs [attrs]
   (-> (zipmap (->> (keys attrs)
